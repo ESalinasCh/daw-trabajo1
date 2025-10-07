@@ -1,9 +1,45 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
-    id("kotlin-android")
-    // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
+    id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// Lee el archivo .env para obtener la clave de API
+val dotenv = Properties()
+val dotenvFile = rootProject.file("../.env")
+if (dotenvFile.exists()) {
+    dotenvFile.inputStream().use { input ->
+        val lines = input.bufferedReader().readLines().filter { it.contains('=') }
+        val filteredContent = lines.joinToString("\n")
+        dotenv.load(filteredContent.reader())
+    }
+}
+
+// Lee el archivo local.properties para obtener la clave de API
+val localProperties = Properties()
+val localPropertiesFile = rootProject.file("local.properties")
+if (localPropertiesFile.exists()) {
+    localProperties.load(localPropertiesFile.reader())
+}
+
+// Resolve Flutter version properties safely: first check project extras, then local.properties, then defaults
+fun findProp(name: String, local: Properties, default: String): String {
+    // project.findProperty returns Any? or null
+    val prop = if (project.hasProperty(name)) project.property(name) as String else null
+    if (prop != null) return prop
+    // check local.properties keys used by Flutter tooling (flutter.versionCode / flutter.versionName)
+    val localKey = when (name) {
+        "flutterVersionCode" -> "flutter.versionCode"
+        "flutterVersionName" -> "flutter.versionName"
+        else -> name
+    }
+    return local.getProperty(localKey) ?: default
+}
+
+val flutterVersionCode: String = findProp("flutterVersionCode", localProperties, "1")
+val flutterVersionName: String = findProp("flutterVersionName", localProperties, "1.0.0")
 
 android {
     namespace = "com.example.trabajo1"
@@ -11,29 +47,33 @@ android {
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
-        sourceCompatibility = JavaVersion.VERSION_11
-        targetCompatibility = JavaVersion.VERSION_11
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
     }
 
     kotlinOptions {
-        jvmTarget = JavaVersion.VERSION_11.toString()
+        jvmTarget = "1.8"
+    }
+
+    sourceSets {
+        getByName("main") {
+            java.srcDirs("src/main/kotlin")
+        }
     }
 
     defaultConfig {
-        // TODO: Specify your own unique Application ID (https://developer.android.com/studio/build/application-id.html).
         applicationId = "com.example.trabajo1"
-        // You can update the following values to match your application needs.
-        // For more information, see: https://flutter.dev/to/review-gradle-config.
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
-        versionCode = flutter.versionCode
-        versionName = flutter.versionName
+        versionCode = flutterVersionCode.toInt()
+        versionName = flutterVersionName
+
+        // Usa la clave leída de .env
+        manifestPlaceholders["googleMapsApiKey"] = dotenv.getProperty("GOOGLE_MAPS_API_KEY") ?: ""
     }
 
     buildTypes {
-        release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
+        getByName("release") {
             signingConfig = signingConfigs.getByName("debug")
         }
     }
@@ -42,3 +82,5 @@ android {
 flutter {
     source = "../.."
 }
+
+dependencies { }
